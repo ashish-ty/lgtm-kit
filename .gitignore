@@ -1,0 +1,7 @@
+__pycache__/
+.pytest_cache/
+.ruff_cache/
+.coverage
+node_modules/
+.DS_Store
+.pr-videos/

@@ -1,0 +1,16 @@
+{
+  "name": "lgtm-kit",
+  "owner": {
+    "name": "Ashish Tyagi"
+  },
+  "metadata": {
+    "description": "Agent skills that turn AI-written pull requests into something a human can review."
+  },
+  "plugins": [
+    {
+      "name": "lgtm-kit",
+      "source": "./",
+      "description": "PR workflow skills for coding agents. Starts with pr-video: a narrated ≤3 min walkthrough video of any PR, made locally."
+    }
+  ]
+}

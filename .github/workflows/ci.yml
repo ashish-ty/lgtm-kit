@@ -1,0 +1,38 @@
+name: ci
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  python:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v6
+      - name: Lint
+        run: uvx ruff@0.17.3 check skills
+      - name: Unit tests (pr-video)
+        working-directory: skills/pr-video
+        # The browser E2E test skips itself without Playwright; the full render stays a manual check.
+        run: uv run --python 3.12 --with pytest --with pyyaml --with pillow --with mutagen pytest -q
+
+  remotion:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: skills/pr-video/remotion
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: skills/pr-video/remotion/package-lock.json
+      - run: npm ci --no-audit --no-fund
+      - name: Typecheck
+        run: npm run typecheck

@@ -1,0 +1,3 @@
+# Shared by every skill here. Scripts run through uv on Python ≥3.10.
+line-length = 120
+target-version = "py310"
