@@ -1,6 +1,6 @@
 # /// script
 # requires-python = ">=3.10"
-# dependencies = ["kokoro-onnx>=0.4", "edge-tts>=6.1", "mutagen>=1.47"]
+# dependencies = ["kokoro-onnx>=0.4", "edge-tts>=6.1", "tinytag>=2.1"]
 # ///
 """Speak each beat's narration, locally by default.
 
@@ -76,9 +76,12 @@ def duration(path: Path) -> float:
     if path.suffix == ".wav":
         with wave.open(str(path)) as w:
             return w.getnframes() / w.getframerate()
-    from mutagen import File  # mp3 from edge-tts
+    from tinytag import TinyTag  # mp3 from edge-tts (MIT; replaces GPL mutagen)
 
-    return float(File(str(path)).info.length)
+    seconds = TinyTag.get(str(path)).duration
+    if seconds is None:
+        raise ValueError(f"can't read the length of {path}")
+    return float(seconds)
 
 
 def voice_beats(beats: list[dict], captures: Path, speak: Callable[[str, Path], None], engine: str,

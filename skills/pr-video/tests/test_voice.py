@@ -66,6 +66,28 @@ def test_duration_of_a_wav(tmp_path):
     assert voice.duration(tmp_path / "a.wav") == pytest.approx(1.5)
 
 
+MP3_FRAME = b"\xff\xfb\x90\x64" + b"\x00" * 413  # MPEG-1 Layer III, 128 kbps, 44.1 kHz: 417 bytes, 1152 samples
+MP3_FRAME_SECONDS = 1152 / 44100
+
+
+def test_duration_of_an_mp3(tmp_path):
+    (tmp_path / "a.mp3").write_bytes(MP3_FRAME * 40)
+    assert voice.duration(tmp_path / "a.mp3") == pytest.approx(40 * MP3_FRAME_SECONDS, abs=0.05)
+
+
+def test_an_unreadable_mp3_names_the_file(tmp_path):
+    (tmp_path / "bad.mp3").write_bytes(b"not audio")
+    with pytest.raises(ValueError, match="bad.mp3"):
+        voice.duration(tmp_path / "bad.mp3")
+
+
+def test_no_copyleft_dependencies():
+    """The skill is MIT; company legal scans flag GPL libraries even when they're only fetched at run time."""
+    scripts = Path(voice.__file__).parent
+    headers = "".join(p.read_text().split("# ///", 2)[1] for p in scripts.glob("*.py") if "# /// script" in p.read_text())
+    assert "mutagen" not in headers
+
+
 def test_voice_beats_speaks_each_line_once_and_reuses_the_cache(tmp_path):
     spoken = []
 

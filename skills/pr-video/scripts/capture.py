@@ -1,7 +1,7 @@
 # /// script
 # requires-python = ">=3.10"
 # dependencies = ["playwright>=1.45", "pyyaml>=6", "pillow>=10", "kokoro-onnx>=0.4", "edge-tts>=6.1",
-#                 "mutagen>=1.47"]
+#                 "tinytag>=2.1"]
 # ///
 """Carry out a storyboard: film its live beats, cut its cards from the diff, speak its narration.
 

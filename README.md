@@ -53,8 +53,6 @@ on screen and what still needs a human eye.
 | Skill | What it does | Status |
 |---|---|---|
 | 🎬 [**pr-video**](skills/pr-video/SKILL.md) | A narrated walkthrough video (≤ 3 min) of any PR or branch: code cards, the running app filmed with a synthetic cursor and a local AI voiceover | **v0.1** |
-| 🧱 `pr-ship` | Ship work as small, test-first stacked PRs that pass local "ready for review" gates | planned |
-| 🔥 `qa-chaos` | Exploratory QA and fault injection against a locally running app | planned |
 
 ## Install
 
@@ -155,7 +153,7 @@ Issues and PRs are welcome. To run the checks CI runs:
 
 ```bash
 cd skills/pr-video
-uv run --python 3.12 --with pytest --with pyyaml --with pillow --with mutagen pytest -q
+uv run --python 3.12 --with pytest --with pyyaml --with pillow --with tinytag pytest -q
 (cd remotion && npm ci && npm run typecheck)
 uvx ruff check ../../skills
 ```

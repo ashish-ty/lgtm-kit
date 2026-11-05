@@ -19,7 +19,7 @@ jobs:
       - name: Unit tests (pr-video)
         working-directory: skills/pr-video
         # The browser E2E test skips itself without Playwright; the full render stays a manual check.
-        run: uv run --python 3.12 --with pytest --with pyyaml --with pillow --with mutagen pytest -q
+        run: uv run --python 3.12 --with pytest --with pyyaml --with pillow --with tinytag pytest -q
 
   remotion:
     runs-on: ubuntu-latest
