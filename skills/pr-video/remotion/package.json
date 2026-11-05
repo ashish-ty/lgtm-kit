@@ -1,6 +1,7 @@
 {
   "name": "pr-video",
   "private": true,
+  "license": "MIT",
   "version": "0.0.0",
   "description": "Composes a PR's diff cards and live captures into a narrated review video. Driven by ../scripts/render.py.",
   "scripts": {
