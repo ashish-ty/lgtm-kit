@@ -135,22 +135,18 @@ Everything runs on your machine. Nothing is uploaded, nothing gets posted, nothi
 
 ## Cost
 
-Filming, voice and rendering run locally and use no model tokens. The tokens go to the agent
-reading the diff and writing the storyboard. Measured in fresh headless Claude Code sessions
-(`claude -p … --output-format json`, Opus, one run each, November 2026, all three in parallel on
-one Mac) on real Excalidraw PRs:
+Filming, voice and rendering run on your machine and cost nothing. The tokens go to the agent
+reading the diff and writing the storyboard.
 
-| PR | Size | Video | Model calls | Output tokens | Cache reads | Cost (USD) | Wall time |
-|---|---|---|---|---|---|---|---|
-| [#12219](https://github.com/excalidraw/excalidraw/pull/12219) | 7 files, +326 −44 | cards only, 2:39 | 25 | 12k | 1.3M | **$1.71** | 5 min |
-| [#11822](https://github.com/excalidraw/excalidraw/pull/11822) | 2 files, +22 −116 | cards only, 1:35 | 38 | 18k | 2.2M | **$2.45** | 14 min |
-| [#12189](https://github.com/excalidraw/excalidraw/pull/12189) | 9 files, +852 −21 | cards + live app, 2:20 | 72 | 48k | 7.1M | **$6.46** | 18 min |
+For an average PR (5–10 files, a few hundred changed lines), with Claude Opus, expect roughly:
 
-- Cost follows **how much the agent checks its own work** (preview frames, retries) more than
-  PR size. Live capture costs the most, because the agent looks at screenshots.
-- Every session starts with ~38k tokens of context (agent instructions, skill list, tools)
-  before it reads the PR. A leaner agent setup is cheaper.
-- Most input comes from the prompt cache. A cheaper model lowers cost further. Untested here.
+| Video | Tokens | Cost |
+|---|---|---|
+| Code walkthrough only | ~2M | ~$2 |
+| Code walkthrough + the running app filmed | ~7M | ~$6–7 |
+
+These are rough figures. They vary with your agent setup and with how much the agent checks its
+own work.
 
 ## ⚠️ Remotion license
 
