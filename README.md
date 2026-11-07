@@ -11,9 +11,10 @@ Agent skills that turn AI-written pull requests into something a human can actua
 [![Agent Skills](https://img.shields.io/badge/format-Agent%20Skills-8A2BE2.svg)](#install)
 [![Runs locally](https://img.shields.io/badge/runs-100%25%20local-2ea44f.svg)](#privacy)
 
-<!-- HERO VIDEO: replace with the Excalidraw demo once rendered -->
+<!-- HERO VIDEO: put the user-attachments video URL on its own line here, then un-comment the caption.
 
 <sub>▲ Made by <code>pr-video</code> from a real merged PR: <a href="https://github.com/excalidraw/excalidraw/pull/12189">excalidraw#12189</a>. No one recorded a screen.</sub>
+-->
 
 </div>
 
@@ -99,7 +100,7 @@ both can drive them.
 | Node 18+ | Remotion installs itself on the first render |
 | [`gh`](https://cli.github.com/), signed in | To read PRs by number (or use `--base main --head <branch>`) |
 | Chrome *or* `uvx playwright install chromium` | Only for filming the live app |
-| `uv run skills/pr-video/scripts/voice.py setup` | Once: fetches the Kokoro voice model (~120 MB) |
+| ~120 MB of disk | The Kokoro voice model, fetched and checksum-verified on the first run |
 
 Tested on **macOS**. Linux runs the test suite in CI. Windows: use WSL.
 
@@ -138,15 +139,9 @@ Everything runs on your machine. Nothing is uploaded, nothing gets posted, nothi
 Filming, voice and rendering run on your machine and cost nothing. The tokens go to the agent
 reading the diff and writing the storyboard.
 
-For an average PR (5–10 files, a few hundred changed lines), with Claude Opus, expect roughly:
-
-| Video | Tokens | Cost |
-|---|---|---|
-| Code walkthrough only | ~2M | ~$2 |
-| Code walkthrough + the running app filmed | ~7M | ~$6–7 |
-
-These are rough figures. They vary with your agent setup and with how much the agent checks its
-own work.
+For an average PR (5–10 files, a few hundred changed lines) with Claude Opus, expect roughly
+**$2** for a code walkthrough and **$6–7** when the running app is filmed too. Your agent setup
+and how much the agent checks its own work move this either way.
 
 ## ⚠️ Remotion license
 

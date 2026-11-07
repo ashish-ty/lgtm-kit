@@ -81,6 +81,31 @@ def test_an_unreadable_mp3_names_the_file(tmp_path):
         voice.duration(tmp_path / "bad.mp3")
 
 
+def fake_download(content: bytes):
+    def retrieve(url: str, path: Path) -> None:
+        Path(path).write_bytes(content)
+    return retrieve
+
+
+def test_setup_keeps_a_download_that_matches_its_pinned_hash(tmp_path, monkeypatch):
+    import hashlib
+    monkeypatch.setattr(voice.urllib.request, "urlretrieve", fake_download(b"model"))
+    monkeypatch.setattr(voice, "MODEL_SHA256", {name: hashlib.sha256(b"model").hexdigest() for name in voice.MODEL_FILES})
+    voice.setup(tmp_path)
+    assert voice.model_ready(tmp_path)
+
+
+def test_setup_refuses_a_download_that_doesnt_match(tmp_path, monkeypatch):
+    monkeypatch.setattr(voice.urllib.request, "urlretrieve", fake_download(b"tampered"))
+    with pytest.raises(voice.VoiceError, match="checksum"):
+        voice.setup(tmp_path)
+    assert list(tmp_path.iterdir()) == []
+
+
+def test_every_model_file_has_a_pinned_hash():
+    assert set(voice.MODEL_SHA256) == set(voice.MODEL_FILES)
+
+
 def test_no_copyleft_dependencies():
     """The skill is MIT; company legal scans flag GPL libraries even when they're only fetched at run time."""
     scripts = Path(voice.__file__).parent

@@ -31,6 +31,11 @@ MODEL_DIR = CACHE / "kokoro"
 TTS_CACHE = CACHE / "tts"
 MODEL_URL = "https://github.com/thewh1teagle/kokoro-onnx/releases/download/model-files-v1.0/"
 MODEL_FILES = ("kokoro-v1.0.int8.onnx", "voices-v1.0.bin")
+# Pinned so a swapped or corrupted release asset is refused (the release publishes no digests).
+MODEL_SHA256 = {
+    "kokoro-v1.0.int8.onnx": "6e742170d309016e5891a994e1ce1559c702a2ccd0075e67ef7157974f6406cb",
+    "voices-v1.0.bin": "bca610b8308e8d99f32e6fe4197e7ec01679264efed0cac9140fe9c29f1fbf7d",
+}
 ENGINES = ("auto", "kokoro", "edge")
 VOICES = {"kokoro": "af_heart", "edge": "en-US-AriaNeural"}
 SUFFIX = {"kokoro": ".wav", "edge": ".mp3"}
@@ -141,18 +146,30 @@ def speaker(engine: str, voice_name: str) -> Callable[[str, Path], None]:
     return kokoro_speaker(voice_name) if engine == "kokoro" else edge_speaker(voice_name)
 
 
-def setup() -> None:
-    MODEL_DIR.mkdir(parents=True, exist_ok=True)
+def file_sha256(path: Path) -> str:
+    digest = hashlib.sha256()
+    with path.open("rb") as f:
+        for block in iter(lambda: f.read(1 << 20), b""):
+            digest.update(block)
+    return digest.hexdigest()
+
+
+def setup(folder: Path = MODEL_DIR) -> None:
+    folder.mkdir(parents=True, exist_ok=True)
     for name in MODEL_FILES:
-        target = MODEL_DIR / name
+        target = folder / name
         if target.exists():
             print(f"have {target}")
             continue
         print(f"fetching {name} …")
         part = target.with_suffix(".part")
         urllib.request.urlretrieve(MODEL_URL + name, part)
+        if file_sha256(part) != MODEL_SHA256[name]:
+            part.unlink()
+            raise VoiceError(f"{name} from {MODEL_URL} failed its checksum; not installed. "
+                             "Retry, and if it fails again the release asset has changed")
         part.rename(target)
-    print(f"Kokoro model ready in {MODEL_DIR}")
+    print(f"Kokoro model ready in {folder}")
 
 
 def main() -> None:
