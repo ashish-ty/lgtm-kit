@@ -134,15 +134,6 @@ Everything runs on your machine. Nothing is uploaded, nothing gets posted, nothi
   text to Microsoft**, so it only runs with `--allow-edge`.
 - Sign-in sessions for live capture are kept in `~/.pr-video/`, never in your repo.
 
-## Cost
-
-Filming, voice and rendering run on your machine and cost nothing. The tokens go to the agent
-reading the diff and writing the storyboard.
-
-For an average PR (5–10 files, a few hundred changed lines) with Claude Opus, expect roughly
-**$2** for a code walkthrough and **$6–7** when the running app is filmed too. Your agent setup
-and how much the agent checks its own work move this either way.
-
 ## ⚠️ Remotion license
 
 pr-video renders with [Remotion](https://www.remotion.dev/license). Remotion is free for
