@@ -161,7 +161,3 @@ render the MP4.
 - Voice: [Kokoro-82M](https://github.com/hexgrad/kokoro) (Apache-2.0) via
   [kokoro-onnx](https://github.com/thewh1teagle/kokoro-onnx) (MIT).
 - Rendering: [Remotion](https://www.remotion.dev). Browser: [Playwright](https://playwright.dev).
-
-## License
-
-[MIT](LICENSE) © 2026 Ashish Tyagi
