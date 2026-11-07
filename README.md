@@ -11,10 +11,9 @@ Agent skills that turn AI-written pull requests into something a human can actua
 [![Agent Skills](https://img.shields.io/badge/format-Agent%20Skills-8A2BE2.svg)](#install)
 [![Runs locally](https://img.shields.io/badge/runs-100%25%20local-2ea44f.svg)](#privacy)
 
-<!-- HERO VIDEO: put the user-attachments video URL on its own line here, then un-comment the caption.
+https://github.com/user-attachments/assets/ae27cb26-8e71-49fc-8a54-764643385167
 
 <sub>▲ Made by <code>pr-video</code> from a real merged PR: <a href="https://github.com/excalidraw/excalidraw/pull/12189">excalidraw#12189</a>. No one recorded a screen.</sub>
--->
 
 </div>
 
