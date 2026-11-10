@@ -11,7 +11,7 @@ Agent skills that turn AI-written pull requests into something a human can actua
 [![Agent Skills](https://img.shields.io/badge/format-Agent%20Skills-8A2BE2.svg)](#install)
 [![Runs locally](https://img.shields.io/badge/runs-100%25%20local-2ea44f.svg)](#privacy)
 
-https://github.com/user-attachments/assets/ae27cb26-8e71-49fc-8a54-764643385167
+https://github.com/user-attachments/assets/6a3e7f52-a69f-40bb-91bb-6528cd9e119b
 
 <sub>▲ Made by <code>pr-video</code> from a real merged PR: <a href="https://github.com/excalidraw/excalidraw/pull/12189">excalidraw#12189</a>. No one recorded a screen.</sub>
 
@@ -30,13 +30,13 @@ voice and hands you an MP4. You watch it before you open the diff.
 
 <table>
   <tr>
-    <td width="33%"><img src="docs/media/code-card.png" alt="A code card showing the hunk that decides number, letter or roman numeral"></td>
-    <td width="33%"><img src="docs/media/live-finding.png" alt="The running app: duplicating 'D. Knuth' gives 'E. Knuth'"></td>
+    <td width="33%"><img src="docs/media/code-card.png" alt="A code card showing the regular expressions that decide what counts as a list marker, with the narration subtitled below"></td>
+    <td width="33%"><img src="docs/media/live-app.png" alt="The running app: Cmd+D on a '9. buy milk' sticky note gives a copy reading '10. buy milk'"></td>
     <td width="33%"><img src="docs/media/review-points.png" alt="End card: four points to check before approving"></td>
   </tr>
   <tr>
     <td align="center"><b>The code that matters</b><br><sub>2–5 hunks cut from the real diff, explained in plain words</sub></td>
-    <td align="center"><b>The real app, filmed</b><br><sub>It caught an edge case the PR didn't mention</sub></td>
+    <td align="center"><b>The real app, filmed</b><br><sub>The PR's claim, checked on screen: 9 becomes 10 on the copy</sub></td>
     <td align="center"><b>What to check before you approve</b><br><sub>Honest doubts, not a summary of the description</sub></td>
   </tr>
 </table>
@@ -122,6 +122,8 @@ before a browser opens. If a screen the PR promises isn't there, the run stops a
 - **Real things only.** Code cards are the real diff, and numbers in captions are read off the screen.
 - **≤ 3 minutes, enforced.** A longer storyboard is refused, with the longest beats named.
 - **Backend-only PR?** You get a cards-only video.
+- **English subtitles** of the narration are burned in, and written beside the MP4 as an `.srt`
+  (`--no-subtitles` turns them off).
 - Output goes to `<repo>/.pr-videos/`, which ignores itself in git.
 
 ## Privacy

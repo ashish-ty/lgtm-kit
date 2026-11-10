@@ -5,7 +5,7 @@
 """Speak each beat's narration, locally by default.
 
     uv run voice.py setup                     # one-time: fetch the Kokoro model (~120 MB)
-    uv run voice.py say "Some words" out.wav  # try a voice
+    uv run voice.py say "Some words" out.wav [--allow-edge]  # try a voice
 
 **Kokoro** (``kokoro-onnx``) runs on this machine; nothing leaves it. **edge-tts** is the free
 fallback, but it sends the narration text to Microsoft's online speech service, and narration
@@ -163,7 +163,12 @@ def setup(folder: Path = MODEL_DIR) -> None:
             continue
         print(f"fetching {name} …")
         part = target.with_suffix(".part")
-        urllib.request.urlretrieve(MODEL_URL + name, part)
+        try:
+            urllib.request.urlretrieve(MODEL_URL + name, part)
+        except OSError as err:  # URLError, a reset connection, a full disk
+            part.unlink(missing_ok=True)
+            raise VoiceError(f"could not download {name} from {MODEL_URL}: {err}. "
+                             "Check the connection and rerun `uv run voice.py setup`") from err
         if file_sha256(part) != MODEL_SHA256[name]:
             part.unlink()
             raise VoiceError(f"{name} from {MODEL_URL} failed its checksum; not installed. "
@@ -172,15 +177,24 @@ def setup(folder: Path = MODEL_DIR) -> None:
     print(f"Kokoro model ready in {folder}")
 
 
+def say(text: str, out: Path, allow_edge: bool) -> None:
+    engine = choose_engine("auto", model_ready(), edge_allowed(allow_edge))
+    speaker(engine, VOICES[engine])(text, out)
+    print(f"{engine}: {out} ({duration(out):.1f} s)")
+
+
 def main() -> None:
-    if sys.argv[1:2] == ["setup"]:
-        setup()
-    elif sys.argv[1:2] == ["say"] and len(sys.argv) == 4:
-        engine = choose_engine("auto", model_ready(), edge_allowed("--allow-edge" in sys.argv))
-        speaker(engine, VOICES[engine])(sys.argv[2], Path(sys.argv[3]))
-        print(f"{engine}: {sys.argv[3]} ({duration(Path(sys.argv[3])):.1f} s)")
-    else:
-        sys.exit(__doc__)
+    flags = {a for a in sys.argv[1:] if a.startswith("--")}
+    args = [a for a in sys.argv[1:] if not a.startswith("--")]
+    try:
+        if args == ["setup"] and not flags:
+            setup()
+        elif len(args) == 3 and args[0] == "say" and flags <= {"--allow-edge"}:
+            say(args[1], Path(args[2]), "--allow-edge" in flags)
+        else:
+            sys.exit(__doc__)
+    except VoiceError as err:
+        sys.exit(f"NO VOICE: {err}")
 
 
 if __name__ == "__main__":

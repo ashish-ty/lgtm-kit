@@ -53,16 +53,30 @@ def trigger(page: Page, label: str) -> Locator:
 
 def option(page: Page, value: str, label: str | None = None) -> Locator:
     """An open dropdown's entry: role=option when the component marks it, otherwise the last
-    exact text match (a list renders after its trigger, so the last match is the entry, not a chip)."""
+    exact text match (a list renders after its trigger, so the last match is the entry, not a chip).
+    Under a label it looks beside that label first, then for a visible role=option anywhere: Radix,
+    MUI, Headless UI and react-select render their list into ``<body>``, far from the label."""
     scope = control(page, label) if label else page
     by_role = scope.get_by_role("option", name=value, exact=True)
     by_text = scope.get_by_text(value, exact=True).last
-    either = by_role.first.or_(by_text)
+    portal = page.get_by_role("option", name=value, exact=True).locator("visible=true")
+    either = by_role.first.or_(by_text).or_(portal.first)
     try:  # the list renders a beat after the click that opens it
         either.first.wait_for(state="visible", timeout=OPEN_TIMEOUT_MS)
     except PlaywrightError:
         pass
-    return by_role.first if by_role.count() else by_text
+    if by_role.count():
+        return by_role.first
+    if label and not by_text.count() and portal.count():
+        return portal.first
+    return by_text
+
+
+def open_options(page: Page, label: str) -> list[str]:
+    """The entries of the dropdown under ``label`` that is open now: beside the label, or a
+    visible listbox anywhere on the page when the component portals it."""
+    near = control(page, label).get_by_role("option").all_inner_texts()
+    return near or page.get_by_role("option").locator("visible=true").all_inner_texts()
 
 
 def cell(page: Page, row: str, column: str) -> Locator:

@@ -12,11 +12,17 @@ beat's last shot is held until it finishes.
 A beat's ``crop`` frames its result. The shots before a result keep the framing the previous
 beat left while the cursor's target is inside it, and show the whole screen otherwise. Cursor
 points are written in video pixels, already mapped through each shot's framing.
+
+**Subtitles** follow the narration: each voiced beat's ``say`` is cut into short cues at sentence,
+then clause, then word breaks, and the clip's length is shared among them by their characters —
+the voice reads at an even pace, so that lands close enough. A manifest with
+``subtitles: false`` (``capture.py --no-subtitles``) has none; a silent video has nothing to subtitle.
 """
 
 from __future__ import annotations
 
 import json
+import re
 import sys
 from pathlib import Path
 
@@ -31,6 +37,9 @@ PASSING_S = 0.6
 VOICE_TAIL_S = 0.4  # breath after the last word, before the cut
 MAX_LENGTH_S = 180
 CURSOR_HOME = (960, 640)
+MAX_CUE_CHARS = 84  # two lines of a subtitle, the usual broadcast limit
+SENTENCE_BREAK = re.compile(r"(?<=[.!?])\s+")
+CLAUSE_BREAK = re.compile(r"(?<=[,;:\u2014])\s+")
 
 
 class LengthError(ValueError):
@@ -104,6 +113,58 @@ def live_segments(beat: dict, start: int, cursor, carried):
     return stretch_last(shots, voice_frames(beat)), moves, cursor
 
 
+def _pack(pieces: list[str]) -> list[str]:
+    """Join pieces, in order, into lines of at most ``MAX_CUE_CHARS``."""
+    out, line = [], ""
+    for piece in pieces:
+        joined = f"{line} {piece}" if line else piece
+        if len(joined) <= MAX_CUE_CHARS or not line:
+            line = joined
+        else:
+            out.append(line)
+            line = piece
+    return [*out, line] if line else out
+
+
+def _fit(sentence: str) -> list[str]:
+    if len(sentence) <= MAX_CUE_CHARS:
+        return [sentence]
+    pieces = []
+    for clause in CLAUSE_BREAK.split(sentence):
+        pieces += [clause] if len(clause) <= MAX_CUE_CHARS else _pack(clause.split(" "))
+    return _pack(pieces)
+
+
+def cue_texts(text: str) -> list[str]:
+    """Narration cut into subtitle cues: whole sentences where they fit, clauses or words where not."""
+    flat = " ".join(text.split())
+    return [cue for sentence in SENTENCE_BREAK.split(flat) if sentence for cue in _fit(sentence)]
+
+
+def subtitles_for(text: str, start: int, length: int) -> list[dict]:
+    """Cues back to back from ``start``, sharing ``length`` frames by how much each one says."""
+    cues = cue_texts(text)
+    total = sum(len(c) for c in cues) or 1
+    out, said = [], 0
+    for cue in cues:
+        begin = start + round(length * said / total)
+        said += len(cue)
+        out.append({"from": begin, "duration": start + round(length * said / total) - begin, "text": cue})
+    return [c for c in out if c["duration"] > 0]
+
+
+def _clock(frame: int, fps: int) -> str:
+    ms = round(frame * 1000 / fps)
+    return f"{ms // 3_600_000:02d}:{ms // 60_000 % 60:02d}:{ms // 1000 % 60:02d},{ms % 1000:03d}"
+
+
+def srt(timeline: dict) -> str:
+    """The subtitles as a SubRip file, for players and uploads that show captions as text."""
+    fps = timeline["fps"]
+    return "\n".join(f"{i}\n{_clock(c['from'], fps)} --> {_clock(c['from'] + c['duration'], fps)}\n{c['text']}\n"
+                     for i, c in enumerate(timeline.get("subtitles") or [], start=1))
+
+
 def title_card(manifest: dict) -> dict:
     pr, repo, head, base = (manifest.get(k) for k in ("pr", "repo", "head", "base"))
     eyebrow = " · ".join(p for p in (f"PR #{pr}" if pr else None, repo) if p) or (f"Branch {head}" if head else "")
@@ -118,7 +179,8 @@ def title_card(manifest: dict) -> dict:
 
 
 def build(manifest: dict) -> dict:
-    shots, moves, audio = [], [], []
+    shots, moves, audio, subtitles = [], [], [], []
+    with_subtitles = manifest.get("subtitles", True)
     f, cursor, carried = frames(TITLE_S), CURSOR_HOME, None
     for beat in manifest["beats"]:
         if "card" in beat:
@@ -129,13 +191,15 @@ def build(manifest: dict) -> dict:
             carried = beat.get("crop")
         if beat.get("voice"):
             audio.append({"src": beat["voice"]["src"], "from": f, "duration": frames(beat["voice"]["seconds"])})
+            if with_subtitles and beat.get("say"):
+                subtitles += subtitles_for(beat["say"], f, audio[-1]["duration"])
         shots += segment
         f += sum(s["duration"] for s in segment)
     end = frames(END_S)
     return {"fps": FPS, "width": SIZE[0], "height": SIZE[1], "total_frames": f + end,
             "title": title_card(manifest),
             "end": {"from": f, "duration": end, "points": list(manifest.get("review_points") or [])},
-            "shots": shots, "moves": moves, "audio": audio}
+            "shots": shots, "moves": moves, "audio": audio, "subtitles": subtitles}
 
 
 def seconds(timeline: dict) -> float:

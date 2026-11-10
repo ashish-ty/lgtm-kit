@@ -47,6 +47,9 @@ export type Move = { start: number; end: number; from: Point; to: Point; click: 
 
 export type Clip = { src: string; from: number; duration: number };
 
+// A line of narration on screen while it is spoken; empty for a silent video or --no-subtitles.
+export type Cue = { from: number; duration: number; text: string };
+
 export type TitleCard = { from: number; duration: number; eyebrow: string; title: string; subtitle: string | null };
 
 export type EndCard = { from: number; duration: number; points: string[] };
@@ -61,4 +64,5 @@ export type Timeline = {
   shots: Shot[];
   moves: Move[];
   audio: Clip[];
+  subtitles?: Cue[]; // absent in timelines written before subtitles existed
 };

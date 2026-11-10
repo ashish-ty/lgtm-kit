@@ -6,6 +6,7 @@
 """Carry out a storyboard: film its live beats, cut its cards from the diff, speak its narration.
 
     uv run capture.py <video folder>/storyboard.md [--silent] [--voice auto|kokoro|edge] [--allow-edge]
+                                                   [--no-subtitles]
 
 Writes, beside the storyboard, ``captures/``: a 2x still per live shot, ``audio/`` (one clip per
 narrated beat), ``manifest.json`` (what each beat shows), ``timeline.json`` (the frame schedule
@@ -15,7 +16,9 @@ beats; a code-only video needs no running app.
 It stops — and says which beat and why — rather than film something other than what the
 storyboard says. A live target that isn't on screen is either a naming mistake (check
 ``catalogue.json``) or a **finding**: the PR doesn't do what the storyboard expected it to.
-It also refuses a video longer than three minutes.
+It also refuses a video longer than three minutes — up front from the storyboard's estimate,
+and again from the real timeline before it is written. A failed run leaves the last good
+``captures/`` in place: work happens in ``captures.partial/`` and replaces it only on success.
 
 Clicks land on the exact point the synthetic cursor is drawn at, so the video shows the click
 that really happened.
@@ -27,7 +30,7 @@ import argparse
 import json
 import shutil
 import sys
-from datetime import UTC, datetime
+from datetime import datetime, timezone
 from pathlib import Path
 
 import cards
@@ -36,6 +39,7 @@ import locators
 import storyboard as sb
 import timeline
 import voice
+from playwright.sync_api import Error as PlaywrightError
 from playwright.sync_api import Locator, Page
 from session import SessionError, open_page, require_app, wait_idle
 
@@ -45,6 +49,7 @@ TYPING_FRAME_S = 0.12
 FILM_FRAME_S = 0.45      # each still taken during a wait shows this long: the wait, sped up
 FILM_MAX = 40
 WAIT_FOR_TIMEOUT_MS = 180_000
+START = "the start page"
 
 
 class Recorder:
@@ -60,18 +65,25 @@ class Recorder:
         self.shots.append(entry if seconds is None else {**entry, "seconds": seconds})
 
 
+def box_of(loc: Locator) -> dict:
+    """The target's box on screen; one that vanished or has no layout box is not on screen."""
+    loc.scroll_into_view_if_needed(timeout=locators.FIND_TIMEOUT_MS)
+    box = loc.bounding_box()
+    if box is None:
+        raise locators.TargetNotFound("the target left the page before the cursor reached it")
+    return box
+
+
 def center(loc: Locator, at: list[float] | None = None) -> list[int]:
     """Where the cursor lands: the middle, or ``at`` — a fractional point inside the box."""
-    loc.scroll_into_view_if_needed()
-    box = loc.bounding_box()
+    box = box_of(loc)
     fx, fy = at or (0.5, 0.5)
     return [round(box["x"] + box["width"] * fx), round(box["y"] + box["height"] * fy)]
 
 
 def chevron_end(loc: Locator) -> list[int]:
     """Where to open a multi-select: its chips carry remove buttons, so never the middle."""
-    loc.scroll_into_view_if_needed()
-    box = loc.bounding_box()
+    box = box_of(loc)
     return [round(box["x"] + box["width"] - 12), round(box["y"] + box["height"] / 2)]
 
 
@@ -175,20 +187,37 @@ def live_beat(page: Page, board: sb.Storyboard, beat: sb.Beat, shots_dir: Path) 
 
 
 def card_beat(beat: sb.Beat, diff: dict, layers: tuple[dict, ...] = ()) -> dict:
-    return {"id": beat.id, "scene": beat.scene, "do": beat.do, "hold": beat.hold, "caption": beat.caption,
-            "say": beat.say, "card": cards.card_for(beat, diff, layers)}
+    return {"id": beat.id, "scene": beat.scene, "do": beat.do, "hold": beat.hold,
+            "caption": sb.fill(beat.caption, {}), "say": sb.fill(beat.say, {}), "card": cards.card_for(beat, diff, layers)}
 
 
-def stopped(page: Page, captures: Path, beat: sb.Beat, err: Exception) -> SystemExit:
-    seen = captures / f"STOPPED-{beat.id}.png"
-    page.screenshot(path=str(seen))
-    return SystemExit(f"STOPPED at beat {beat.id} (scene {beat.scene}): {err}\nscreen: {seen}\n"
-                      "Either the storyboard names it wrongly (check catalogue.json), or this is a finding: "
-                      "the PR doesn't show what the storyboard expected. Don't paper over a finding.")
+def why(err: Exception, board: sb.Storyboard) -> str:
+    """What went wrong, in a line, with the hint that fits it."""
+    text = str(err).splitlines()[0] if str(err) else type(err).__name__
+    if isinstance(err, locators.TargetNotFound):
+        return (f"{text}\nEither the storyboard names it wrongly (check catalogue.json), or this is a finding: "
+                "the PR doesn't show what the storyboard expected. Don't paper over a finding.")
+    if "Timeout" in type(err).__name__ or "Timeout" in text:
+        return (f"{text}\nThe page never settled or an action timed out. Something matching the busy selector "
+                f"({board.busy!r}) may stay on screen — set `busy:` in the storyboard to what really means "
+                "loading — or the app is slow or stuck here, which may itself be a finding.")
+    return f"{text}\nThe browser failed on this step; the screenshot shows where it was."
 
 
-def film(board: sb.Storyboard, diff: dict, captures: Path) -> list[dict]:
-    shots_dir = captures / "shots"
+def stopped(page: Page, captures: Path, where: str, err: Exception, board: sb.Storyboard) -> SystemExit:
+    """Stop with a screenshot of the screen as it was, beside the last good capture."""
+    captures.mkdir(parents=True, exist_ok=True)
+    seen = captures / f"STOPPED-{where.replace(' ', '-')}.png"
+    try:
+        page.screenshot(path=str(seen))
+        shown = f"screen: {seen}"
+    except PlaywrightError as shot_err:
+        shown = f"(no screenshot: {str(shot_err).splitlines()[0]})"
+    label = where if where == START else f"beat {where}"
+    return SystemExit(f"STOPPED at {label}: {why(err, board)}\n{shown}")
+
+
+def film(board: sb.Storyboard, diff: dict, shots_dir: Path, captures: Path) -> list[dict]:
     if not board.has_live:
         return [card_beat(b, diff, board.layers) for b in board.beats]
     try:
@@ -197,52 +226,68 @@ def film(board: sb.Storyboard, diff: dict, captures: Path) -> list[dict]:
         raise SystemExit(f"NOT READY: {err}") from err
     beats = []
     with open_page(board.app) as page:
-        page.goto(f"{board.app}{board.start}")
-        wait_idle(page, board.busy, board.settle_ms)
+        try:
+            page.goto(f"{board.app}{board.start}")
+            wait_idle(page, board.busy, board.settle_ms)
+        except PlaywrightError as err:
+            raise stopped(page, captures, START, err, board) from err
         for beat in board.beats:
             if beat.is_card:
                 beats.append(card_beat(beat, diff, board.layers))
                 continue
             try:
                 beats.append(live_beat(page, board, beat, shots_dir))
-            except locators.TargetNotFound as err:
-                raise stopped(page, captures, beat, err) from err
+            except (locators.TargetNotFound, PlaywrightError) as err:
+                raise stopped(page, captures, beat.id, err, board) from err
             print(f"beat {beat.id}: {len(beats[-1]['shots'])} shots")
     return beats
 
 
-def manifest_for(board: sb.Storyboard, diff: dict, beats: list[dict]) -> dict:
-    return {"title": board.title, "pr": board.pr, "repo": board.repo, "base": board.base, "head": board.head,
+def manifest_for(board: sb.Storyboard, diff: dict, beats: list[dict], subtitles: bool = True) -> dict:
+    return {"subtitles": subtitles, "title": board.title, "pr": board.pr, "repo": board.repo, "base": board.base, "head": board.head,
             "url": (diff.get("pr") or {}).get("url"), "app": board.app, "totals": diff.get("totals"),
             "review_points": list(board.review_points),
-            "captured_at": datetime.now(UTC).isoformat(timespec="seconds"), "beats": beats}
+            "captured_at": datetime.now(timezone.utc).isoformat(timespec="seconds"), "beats": beats}
 
 
 def write_json(path: Path, data: dict) -> None:
     path.write_text(json.dumps(data, indent=1, ensure_ascii=False))
 
 
-def run(storyboard_path: Path, silent: bool, engine_name: str, allow_edge: bool) -> Path:
+def check_plan(board: sb.Storyboard) -> float:
+    """Refuse a storyboard whose own estimate is already past the limit, before anything runs."""
+    planned = sb.estimate_seconds(board) + timeline.TITLE_S + timeline.END_S
+    if planned > timeline.MAX_LENGTH_S:
+        longest = sorted(board.beats, key=lambda b: -max(b.hold, len(b.say or "") / sb.SPEECH_CHARS_PER_S))[:3]
+        raise timeline.LengthError(f"about {planned:.0f} s planned, past the {timeline.MAX_LENGTH_S} s limit — "
+                                   f"cut or shorten beats; longest: {', '.join(b.id for b in longest)}")
+    return planned
+
+
+def run(storyboard_path: Path, silent: bool, engine_name: str, allow_edge: bool, subtitles: bool = True) -> Path:
     board = sb.load(storyboard_path)
     folder = storyboard_path.resolve().parent
     diff = sb.read_json(folder / "diff.json") or {"files": [], "totals": {}}
+    planned = check_plan(board)
     engine = None if silent else voice.choose_engine(engine_name, voice.model_ready(), voice.edge_allowed(allow_edge))
-    print(f"about {sb.estimate_seconds(board) + timeline.TITLE_S + timeline.END_S:.0f} s planned; "
-          f"voice: {engine or 'none (silent)'}")
-    captures = folder / "captures"
-    shutil.rmtree(captures, ignore_errors=True)
-    (captures / "shots").mkdir(parents=True)
-    beats = film(board, diff, captures)
+    print(f"about {planned:.0f} s planned; voice: {engine or 'none (silent)'}")
+    captures, work = folder / "captures", folder / "captures.partial"
+    shutil.rmtree(work, ignore_errors=True)
+    (work / "shots").mkdir(parents=True)
+    beats = film(board, diff, work / "shots", captures)
     if engine:
-        beats = voice.voice_beats(beats, captures, voice.speaker(engine, voice.VOICES[engine]), engine,
+        beats = voice.voice_beats(beats, work, voice.speaker(engine, voice.VOICES[engine]), engine,
                                   voice.VOICES[engine])
-    manifest = manifest_for(board, diff, beats)
-    write_json(captures / "manifest.json", manifest)
+    manifest = manifest_for(board, diff, beats, subtitles)
     schedule = timeline.build(manifest)
-    write_json(captures / "timeline.json", schedule)
-    sheet = contact_sheet.build(captures, manifest)
-    print(f"captured {len(beats)} beats; {timeline.seconds(schedule):.1f} s; contact sheet {sheet}")
-    timeline.check_length(schedule)
+    timeline.check_length(schedule)  # before anything is written, so render.py can't render it
+    write_json(work / "manifest.json", manifest)
+    write_json(work / "timeline.json", schedule)
+    contact_sheet.build(work, manifest)
+    shutil.rmtree(captures, ignore_errors=True)
+    work.rename(captures)
+    print(f"captured {len(beats)} beats; {timeline.seconds(schedule):.1f} s; "
+          f"contact sheet {captures / 'contact-sheet.png'}")
     return captures
 
 
@@ -252,15 +297,19 @@ def main() -> None:
     ap.add_argument("--silent", action="store_true", help="no narration")
     ap.add_argument("--voice", default="auto", choices=voice.ENGINES)
     ap.add_argument("--allow-edge", action="store_true", help="allow the online edge-tts fallback")
+    ap.add_argument("--no-subtitles", action="store_true", help="no on-screen narration subtitles")
     args = ap.parse_args()
     try:
-        run(args.storyboard, args.silent, args.voice, args.allow_edge)
+        run(args.storyboard, args.silent, args.voice, args.allow_edge, subtitles=not args.no_subtitles)
     except sb.StoryboardError as err:
         sys.exit(f"STORYBOARD REFUSED:\n{err}")
     except voice.VoiceError as err:
         sys.exit(f"NO VOICE: {err}")
     except timeline.LengthError as err:
         sys.exit(f"TOO LONG: {err}")
+    except PlaywrightError as err:  # the browser itself failed to start or died
+        sys.exit(f"NO BROWSER: {str(err).splitlines()[0]} — run `uv run --with playwright playwright install "
+                 "chromium` if no browser is installed")
 
 
 if __name__ == "__main__":

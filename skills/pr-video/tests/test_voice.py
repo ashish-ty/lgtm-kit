@@ -145,3 +145,32 @@ def test_model_ready_needs_both_files(tmp_path):
     for name in voice.MODEL_FILES:
         (tmp_path / name).write_bytes(b"x")
     assert voice.model_ready(tmp_path) is True
+
+
+def test_setup_turns_a_network_failure_into_a_voice_error(tmp_path, monkeypatch):
+    def broken(url: str, path: Path) -> None:
+        Path(path).write_bytes(b"half")
+        raise OSError("connection reset")
+    monkeypatch.setattr(voice.urllib.request, "urlretrieve", broken)
+    with pytest.raises(voice.VoiceError, match="connection reset"):
+        voice.setup(tmp_path)
+    assert list(tmp_path.iterdir()) == []
+
+
+def test_say_accepts_allow_edge(monkeypatch, tmp_path):
+    spoken = []
+    monkeypatch.setattr(voice, "model_ready", lambda: False)
+    monkeypatch.setattr(voice, "speaker", lambda engine, name: lambda text, out: spoken.append((engine, text, out)))
+    monkeypatch.setattr(voice, "duration", lambda path: 1.0)
+    monkeypatch.setattr(sys, "argv", ["voice.py", "say", "hi", str(tmp_path / "o.mp3"), "--allow-edge"])
+    voice.main()
+    assert spoken == [("edge", "hi", tmp_path / "o.mp3")]
+
+
+def test_main_reports_a_failed_setup_without_a_traceback(monkeypatch):
+    def fail(*_a, **_k) -> None:
+        raise voice.VoiceError("checksum")
+    monkeypatch.setattr(voice, "setup", fail)
+    monkeypatch.setattr(sys, "argv", ["voice.py", "setup"])
+    with pytest.raises(SystemExit, match="NO VOICE: checksum"):
+        voice.main()

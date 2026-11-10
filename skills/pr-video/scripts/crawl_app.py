@@ -20,7 +20,7 @@ from __future__ import annotations
 
 import argparse
 import json
-from datetime import UTC, datetime
+from datetime import datetime, timezone
 from pathlib import Path
 
 import locators
@@ -94,9 +94,9 @@ def read_options(page: Page, label: str, kind: str) -> list[str]:
             before = lines(page, label)
             open_control(page, label, kind)
             if kind == "select":
-                found = locators.control(page, label).get_by_role("option").all_inner_texts()
+                found = locators.open_options(page, label)
             else:
-                found = [s for s in lines(page, label) if s not in before]
+                found = [s for s in lines(page, label) if s not in before] or locators.open_options(page, label)
             found = [s.strip() for s in found if s.strip()][:MAX_OPTIONS]
             if found:
                 return found
@@ -172,7 +172,7 @@ def main() -> None:
                 print(f"{key}: could not crawl — {routes[key]['error']}")
                 continue
             print(summary(key, routes[key]))
-    catalogue = {"app": app, "crawled_at": datetime.now(UTC).isoformat(timespec="seconds"), "routes": routes}
+    catalogue = {"app": app, "crawled_at": datetime.now(timezone.utc).isoformat(timespec="seconds"), "routes": routes}
     args.out.parent.mkdir(parents=True, exist_ok=True)
     args.out.write_text(json.dumps(catalogue, indent=1, ensure_ascii=False))
     print(f"catalogue: {args.out}")

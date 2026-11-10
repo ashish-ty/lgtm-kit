@@ -4,11 +4,12 @@ import { C, MONO, SANS } from './theme';
 import type { CodeCard as Card, Row } from './types';
 
 const ROW_H = 36;
+const COMPACT_ROW_H = 30; // with subtitles on, a full 24-row card still ends above them
 const NUM_W = 76;
 
-const rowStyle = (kind: Row['kind']): React.CSSProperties => ({
+const rowStyle = (kind: Row['kind'], height: number): React.CSSProperties => ({
   display: 'flex',
-  height: ROW_H,
+  height,
   alignItems: 'center',
   background: kind === '+' ? C.addBg : kind === '-' ? C.delBg : 'transparent',
   color: kind === '+' ? C.addFg : kind === '-' ? C.delFg : C.codeFg,
@@ -21,7 +22,7 @@ const Num: React.FC<{ n: number | null }> = ({ n }) => (
 const STATUS: Record<string, string> = { added: 'new file', deleted: 'deleted', renamed: 'renamed' };
 
 // One hunk of the diff, as the reviewer would read it: both line numbers, +/− tinted.
-export const CodeCard: React.FC<{ card: Card }> = ({ card }) => (
+export const CodeCard: React.FC<{ card: Card; compact?: boolean }> = ({ card, compact = false }) => (
   <AbsoluteFill style={{ background: C.codeBg, padding: '48px 64px' }}>
     <div style={{ display: 'flex', alignItems: 'baseline', gap: 24, fontFamily: MONO, fontSize: 32, color: C.white }}>
       <span style={{ fontWeight: 600 }}>{card.file}</span>
@@ -38,7 +39,7 @@ export const CodeCard: React.FC<{ card: Card }> = ({ card }) => (
     </div>
     <div style={{ fontFamily: MONO, fontSize: 25, whiteSpace: 'pre' }}>
       {card.rows.map((r, i) => (
-        <div key={i} style={rowStyle(r.kind)}>
+        <div key={i} style={rowStyle(r.kind, compact ? COMPACT_ROW_H : ROW_H)}>
           <Num n={r.old} />
           <Num n={r.new} />
           <span style={{ width: 34, flexShrink: 0 }}>{r.kind === ' ' ? '' : r.kind}</span>

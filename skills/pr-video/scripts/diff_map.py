@@ -31,6 +31,35 @@ def kind_of(path: str) -> str:
     return "code"
 
 
+C_ESCAPES = {"a": 7, "b": 8, "t": 9, "n": 10, "v": 11, "f": 12, "r": 13, '"': 34, "\\": 92}
+
+
+def unquote(path: str) -> str:
+    """Undo git's C-quoting of a path (``core.quotePath``): ``"caf\\303\\251.txt"`` is ``café.txt``."""
+    if len(path) < 2 or not (path[0] == path[-1] == '"'):
+        return path
+    body, out, i = path[1:-1], bytearray(), 0
+    while i < len(body):
+        ch = body[i]
+        if ch == "\\" and i + 1 < len(body):
+            octal = body[i + 1:i + 4]
+            if len(octal) == 3 and all(c in "01234567" for c in octal):
+                out.append(int(octal, 8))
+                i += 4
+                continue
+            out.append(C_ESCAPES.get(body[i + 1], ord(body[i + 1])))
+            i += 2
+            continue
+        out += ch.encode()
+        i += 1
+    return out.decode("utf-8", errors="replace")
+
+
+def _side_path(text: str) -> str:
+    """A ``---``/``+++`` path: git ends one holding a space with a tab, and quotes unusual ones."""
+    return _strip_prefix(unquote(text.rstrip("\t")))
+
+
 def _strip_prefix(path: str) -> str:
     return path[2:] if path[:2] in ("a/", "b/") else path
 
@@ -38,13 +67,16 @@ def _strip_prefix(path: str) -> str:
 def _git_header_path(line: str) -> str:
     """``diff --git a/x b/x`` — ambiguous with spaces, so only a fallback for files with no ---/+++."""
     rest = line[len("diff --git "):]
+    if rest.endswith('"') and rest.rfind(' "b/') >= 0:
+        return _strip_prefix(unquote(rest[rest.rfind(' "b/') + 1:]))
     half = rest.rfind(" b/")
     return rest[half + 3:] if half >= 0 else rest
 
 
 def _new_file(header: str) -> dict:
     path = _git_header_path(header)
-    return {"path": path, "old_path": path, "status": "modified", "added": 0, "removed": 0, "hunks": []}
+    return {"path": path, "old_path": path, "status": "modified", "binary": False, "added": 0, "removed": 0,
+            "hunks": []}
 
 
 def _read_meta(file: dict, line: str) -> dict:
@@ -54,15 +86,15 @@ def _read_meta(file: dict, line: str) -> dict:
     if line.startswith("deleted file mode"):
         return {**file, "status": "deleted"}
     if line.startswith("rename from "):
-        return {**file, "old_path": line[len("rename from "):], "status": "renamed"}
+        return {**file, "old_path": unquote(line[len("rename from "):]), "status": "renamed"}
     if line.startswith("rename to "):
-        return {**file, "path": line[len("rename to "):], "status": "renamed"}
-    if line.startswith("Binary files "):
-        return {**file, "status": "binary"}
+        return {**file, "path": unquote(line[len("rename to "):]), "status": "renamed"}
+    if line.startswith("Binary files "):  # no hunks to show; it was still added, deleted, renamed or changed
+        return {**file, "binary": True}
     if line.startswith("--- ") and line[4:] != "/dev/null":
-        return {**file, "old_path": _strip_prefix(line[4:])}
+        return {**file, "old_path": _side_path(line[4:])}
     if line.startswith("+++ ") and line[4:] != "/dev/null":
-        return {**file, "path": _strip_prefix(line[4:])}
+        return {**file, "path": _side_path(line[4:])}
     if line.startswith("+++ /dev/null"):
         return {**file, "path": file["old_path"]}
     return file

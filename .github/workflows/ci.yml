@@ -11,6 +11,10 @@ permissions:
 jobs:
   python:
     runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        # 3.10 is the floor every script declares; testing it catches 3.11+-only imports.
+        python: ["3.10", "3.12"]
     steps:
       - uses: actions/checkout@v4
       - uses: astral-sh/setup-uv@v6
@@ -19,7 +23,7 @@ jobs:
       - name: Unit tests (pr-video)
         working-directory: skills/pr-video
         # The browser E2E test skips itself without Playwright; the full render stays a manual check.
-        run: uv run --python 3.12 --with pytest --with pyyaml --with pillow --with tinytag pytest -q
+        run: uv run --python ${{ matrix.python }} --with pytest --with pyyaml --with pillow --with tinytag pytest -q
 
   remotion:
     runs-on: ubuntu-latest

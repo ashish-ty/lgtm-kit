@@ -76,7 +76,7 @@ def files():
 def test_every_file_is_found_with_its_status(files):
     assert {p: f["status"] for p, f in files.items()} == {
         "src/worker.py": "modified", "src/new_mod.py": "added", "old.txt": "deleted",
-        "b/name.py": "renamed", "logo.png": "binary", "uv.lock": "modified",
+        "b/name.py": "renamed", "logo.png": "added", "uv.lock": "modified",
         "tests/test_worker.py": "modified",
     }
 
@@ -152,3 +152,64 @@ def test_a_diff_with_spaces_in_a_path_reads_the_plus_line():
 
 def test_an_empty_diff_has_no_files():
     assert dm.parse("") == []
+
+
+QUOTED = """\
+diff --git "a/caf\\303\\251.txt" "b/caf\\303\\251.txt"
+index 1111111..2222222 100644
+--- "a/caf\\303\\251.txt"
++++ "b/caf\\303\\251.txt"
+@@ -1 +1 @@
+-old
++new
+diff --git a/my file.txt b/my file.txt
+index 1111111..2222222 100644
+--- a/my file.txt\t
++++ b/my file.txt\t
+@@ -1 +1 @@
+-old
++new
+diff --git "a/tab\\there.txt" "b/new \\"name\\".txt"
+similarity index 100%
+rename from "tab\\there.txt"
+rename to "new \\"name\\".txt"
+"""
+
+
+def test_quoted_and_spaced_paths_come_out_as_the_real_names():
+    files = dm.parse(QUOTED)
+    assert [f["path"] for f in files] == ["café.txt", "my file.txt", 'new "name".txt']
+    assert files[2]["old_path"] == "tab\there.txt"
+
+
+BINARIES = """\
+diff --git a/docs/old.png b/docs/old.png
+deleted file mode 100644
+index 1111111..0000000
+Binary files a/docs/old.png and /dev/null differ
+diff --git a/docs/new.png b/docs/new.png
+new file mode 100644
+index 0000000..2222222
+Binary files /dev/null and b/docs/new.png differ
+diff --git a/docs/same.png b/docs/same.png
+index 3333333..4444444 100644
+Binary files a/docs/same.png and b/docs/same.png differ
+diff --git a/docs/a.png b/docs/b.png
+similarity index 90%
+rename from docs/a.png
+rename to docs/b.png
+index 5555555..6666666 100644
+Binary files a/docs/a.png and b/docs/b.png differ
+"""
+
+
+def test_a_binary_file_keeps_its_status_and_is_marked_binary():
+    files = {f["path"]: f for f in dm.parse(BINARIES)}
+    assert {p: f["status"] for p, f in files.items()} == {
+        "docs/old.png": "deleted", "docs/new.png": "added", "docs/same.png": "modified", "docs/b.png": "renamed"}
+    assert all(f["binary"] for f in files.values())
+    assert files["docs/b.png"]["old_path"] == "docs/a.png"
+
+
+def test_a_text_file_is_not_binary(files):
+    assert files["src/worker.py"]["binary"] is False

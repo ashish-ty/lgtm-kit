@@ -1,6 +1,7 @@
 """The schedule is frame-exact: clicks land when the cursor arrives, narration sets each beat's length."""
 from __future__ import annotations
 
+import itertools
 import sys
 from pathlib import Path
 
@@ -154,3 +155,52 @@ def test_main_writes_the_timeline(tmp_path):
     sys.argv = ["timeline.py", str(tmp_path)]
     tl.main()
     assert json.loads((tmp_path / "timeline.json").read_text())["fps"] == tl.FPS
+
+
+SAY = ("Two regular expressions decide what counts as a marker. One takes a number or letters, in brackets, "
+       "in parentheses, or followed by a dot or a bracket, and only when whitespace or the end of the text follows. "
+       "Numbers stop at forty-two.")
+
+
+def test_narration_is_cut_into_short_cues_at_sentence_and_clause_breaks():
+    cues = tl.cue_texts(SAY)
+    assert cues[0] == "Two regular expressions decide what counts as a marker."
+    assert cues[-1] == "Numbers stop at forty-two."
+    assert all(len(c) <= tl.MAX_CUE_CHARS for c in cues)
+    assert " ".join(cues) == SAY
+
+
+def test_a_run_on_sentence_with_no_punctuation_is_cut_between_words():
+    cues = tl.cue_texts("word " * 60)
+    assert len(cues) > 1 and all(len(c) <= tl.MAX_CUE_CHARS for c in cues)
+    assert all(not c.startswith(" ") and not c.endswith(" ") for c in cues)
+
+
+def test_cues_share_the_clip_and_follow_each_other_exactly():
+    cues = tl.subtitles_for(SAY, start=100, length=300)
+    assert cues[0]["from"] == 100
+    assert all(a["from"] + a["duration"] == b["from"] for a, b in itertools.pairwise(cues))
+    assert cues[-1]["from"] + cues[-1]["duration"] == 400
+    longest = max(cues, key=lambda c: len(c["text"]))
+    assert longest["duration"] == max(c["duration"] for c in cues)
+
+
+def test_voiced_beats_get_subtitles_over_their_narration():
+    beat = {**card(voice={"src": "audio/c.wav", "seconds": 4.0}), "say": "The worker retries. Then it raises."}
+    t = tl.build(manifest(beat))
+    assert [s["text"] for s in t["subtitles"]] == ["The worker retries.", "Then it raises."]
+    assert t["subtitles"][0]["from"] == t["audio"][0]["from"]
+    assert sum(s["duration"] for s in t["subtitles"]) == t["audio"][0]["duration"]
+
+
+def test_silent_or_opted_out_videos_have_no_subtitles():
+    voiced = {**card(voice={"src": "audio/c.wav", "seconds": 2.0}), "say": "Hello."}
+    assert tl.build(manifest({**voiced, "voice": None}))["subtitles"] == []
+    assert tl.build(manifest(voiced, subtitles=False))["subtitles"] == []
+
+
+def test_subtitles_export_as_srt():
+    t = {"fps": 30, "subtitles": [{"from": 90, "duration": 45, "text": "One."},
+                                  {"from": 135, "duration": 3700, "text": "Two."}]}
+    assert tl.srt(t) == ("1\n00:00:03,000 --> 00:00:04,500\nOne.\n\n"
+                         "2\n00:00:04,500 --> 00:02:07,833\nTwo.\n")
