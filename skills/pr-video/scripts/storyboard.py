@@ -232,6 +232,8 @@ def check_code(where: str, raw: dict, diff: dict | None) -> list[str]:
         file = diff_map.find_file(diff["files"], str(raw["file"]))
     except KeyError as err:
         return [f"{where}: {err.args[0]}"]
+    if file.get("binary"):
+        return [f"{where}: {raw['file']} is a binary file — it has no lines to show; describe it in narration instead"]
     hunk = raw.get("hunk", 0)
     if not isinstance(hunk, int) or not 0 <= hunk < len(file["hunks"]):
         return [f"{where}: hunk {hunk} — {raw['file']} has {len(file['hunks'])} hunks (0-based)"]

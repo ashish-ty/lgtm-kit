@@ -211,3 +211,10 @@ def test_stray_braces_are_refused_before_capture(text):
 def test_doubled_braces_show_as_one_brace():
     beat = parse("      - id: s\n        do: show\n        say: 'returns {{}}'", head="app: http://x\nstart: /").beats[0]
     assert sb.fill(beat.say, {}) == "returns {}"
+
+
+def test_a_code_beat_on_a_binary_file_says_so():
+    diff = {**DIFF, "files": [*DIFF["files"], {"path": "docs/logo.png", "status": "added", "binary": True,
+                                                "kind": "code", "added": 0, "removed": 0, "hunks": []}]}
+    with pytest.raises(sb.StoryboardError, match="binary file"):
+        sb.parse(board("      - id: c\n        do: code\n        file: docs/logo.png"), diff=diff)

@@ -75,7 +75,8 @@ def _git_header_path(line: str) -> str:
 
 def _new_file(header: str) -> dict:
     path = _git_header_path(header)
-    return {"path": path, "old_path": path, "status": "modified", "added": 0, "removed": 0, "hunks": []}
+    return {"path": path, "old_path": path, "status": "modified", "binary": False, "added": 0, "removed": 0,
+            "hunks": []}
 
 
 def _read_meta(file: dict, line: str) -> dict:
@@ -88,8 +89,8 @@ def _read_meta(file: dict, line: str) -> dict:
         return {**file, "old_path": unquote(line[len("rename from "):]), "status": "renamed"}
     if line.startswith("rename to "):
         return {**file, "path": unquote(line[len("rename to "):]), "status": "renamed"}
-    if line.startswith("Binary files "):
-        return {**file, "status": "binary"}
+    if line.startswith("Binary files "):  # no hunks to show; it was still added, deleted, renamed or changed
+        return {**file, "binary": True}
     if line.startswith("--- ") and line[4:] != "/dev/null":
         return {**file, "old_path": _side_path(line[4:])}
     if line.startswith("+++ ") and line[4:] != "/dev/null":
