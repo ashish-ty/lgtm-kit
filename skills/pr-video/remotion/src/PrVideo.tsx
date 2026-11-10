@@ -5,6 +5,7 @@ import { EndCard, TitleCard } from './Cards';
 import { CodeCard } from './CodeCard';
 import { Cursor } from './Cursor';
 import { Overview } from './Overview';
+import { Subtitle } from './Subtitle';
 import { TestsCard } from './TestsCard';
 import { C } from './theme';
 import type { CodeCard as Code, OverviewCard, Shot, TestsCard as Tests, Timeline } from './types';
@@ -17,8 +18,10 @@ const framing = (crop: Shot['crop'], width: number, height: number): React.CSSPr
   return { position: 'absolute', left: -x * scale, top: -y * scale, width: width * scale, height: height * scale };
 };
 
-const ShotView: React.FC<{ shot: Shot; width: number; height: number }> = ({ shot, width, height }) => {
-  if (shot.kind === 'code') return <CodeCard card={shot.card as Code} />;
+const ShotView: React.FC<{ shot: Shot; width: number; height: number; compact: boolean }> = ({
+  shot, width, height, compact,
+}) => {
+  if (shot.kind === 'code') return <CodeCard card={shot.card as Code} compact={compact} />;
   if (shot.kind === 'overview') return <Overview card={shot.card as OverviewCard} />;
   if (shot.kind === 'tests') return <TestsCard card={shot.card as Tests} />;
   return <Img src={staticFile(shot.image as string)} style={framing(shot.crop, width, height)} />;
@@ -27,15 +30,22 @@ const ShotView: React.FC<{ shot: Shot; width: number; height: number }> = ({ sho
 export const PrVideo: React.FC<Timeline> = (t) => {
   const frame = useCurrentFrame();
   const current = t.shots.find((s) => frame >= s.from && frame < s.from + s.duration);
+  const subtitles = t.subtitles ?? [];
+  const subtitled = subtitles.length > 0;
   return (
     <AbsoluteFill style={{ background: C.paper }}>
       {t.shots.map((shot) => (
         <Sequence key={`${shot.beat}-${shot.from}`} from={shot.from} durationInFrames={shot.duration}>
-          <ShotView shot={shot} width={t.width} height={t.height} />
-          {shot.caption && <Caption text={shot.caption} />}
+          <ShotView shot={shot} width={t.width} height={t.height} compact={subtitled} />
+          {shot.caption && <Caption text={shot.caption} raised={subtitled} />}
         </Sequence>
       ))}
       {current?.kind === 'image' && <Cursor moves={t.moves} frame={frame} />}
+      {subtitles.map((cue) => (
+        <Sequence key={`cue-${cue.from}`} from={cue.from} durationInFrames={cue.duration}>
+          <Subtitle text={cue.text} />
+        </Sequence>
+      ))}
       {t.audio.map((clip) => (
         <Sequence key={clip.src} from={clip.from} durationInFrames={clip.duration}>
           <Audio src={staticFile(clip.src)} />

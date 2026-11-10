@@ -1,9 +1,11 @@
 import React from 'react';
 import { interpolate, useCurrentFrame } from 'remotion';
+import { SUBTITLE_SPACE } from './Subtitle';
 import { C, FADE, SANS } from './theme';
 
-// A lower third over the screen: dark, so it reads over a light or a dark UI.
-export const Caption: React.FC<{ text: string }> = ({ text }) => {
+// A lower third over the screen: dark, so it reads over a light or a dark UI. With subtitles on,
+// it rises above them.
+export const Caption: React.FC<{ text: string; raised?: boolean }> = ({ text, raised = false }) => {
   const frame = useCurrentFrame();
   const shown = interpolate(frame, [0, FADE], [0, 1], { extrapolateRight: 'clamp' });
   return (
@@ -11,7 +13,7 @@ export const Caption: React.FC<{ text: string }> = ({ text }) => {
       style={{
         position: 'absolute',
         left: 72,
-        bottom: 72,
+        bottom: raised ? SUBTITLE_SPACE : 72,
         maxWidth: 1300,
         padding: '22px 34px 24px 30px',
         background: 'rgba(20,23,28,0.9)',

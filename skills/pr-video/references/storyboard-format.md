@@ -37,7 +37,7 @@ scenes:
         target: {role: button, name: Upload}
         figures:
           result: {text: "Uploaded 3 files"}
-        caption: "{result}"            # ≤ 90 characters, on the beat's result
+        caption: "{result}"            # ≤ 90 characters, on the beat's result; {{ and }} for a literal brace
         say: Clicking Upload now reports {result}.
 ```
 

@@ -19,6 +19,7 @@ from __future__ import annotations
 import argparse
 import re
 import sys
+import urllib.error
 import urllib.request
 from contextlib import contextmanager
 from pathlib import Path
@@ -84,10 +85,14 @@ def wait_idle(page: Page, busy: str = DEFAULT_BUSY, settle_ms: int = 1200) -> No
 
 
 def reachable(url: str) -> bool:
+    """Whether a server answers at all. A 401/403 sign-in gate or a 404 root still answers;
+    only a 5xx or no reply at all means the app isn't up."""
     try:
         with urllib.request.urlopen(url, timeout=REACH_TIMEOUT_S) as response:
             return response.status < 500
-    except Exception:  # noqa: BLE001 — any failure means "not answering"
+    except urllib.error.HTTPError as err:
+        return err.code < 500
+    except Exception:  # noqa: BLE001 — refused, timed out, bad URL: not answering
         return False
 
 

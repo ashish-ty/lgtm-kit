@@ -14,6 +14,7 @@ const EMPTY: Timeline = {
   shots: [],
   moves: [],
   audio: [],
+  subtitles: [],
 };
 
 export const Root: React.FC = () => (

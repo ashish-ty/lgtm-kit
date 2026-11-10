@@ -106,3 +106,21 @@ def test_a_branch_defaults_to_what_is_checked_out(repo):
 def test_repo_slug_reads_github_urls():
     assert prepare.repo_slug("https://github.com/acme/infra/pull/7") == "acme/infra"
     assert prepare.repo_slug(None) is None
+
+
+REMOTES = """\
+origin\tgit@github.com:me/infra.git (fetch)
+origin\tgit@github.com:me/infra.git (push)
+upstream\thttps://github.com/Acme/Infra (fetch)
+upstream\thttps://github.com/Acme/Infra (push)
+"""
+
+
+def test_the_remote_is_the_one_that_holds_the_pr():
+    assert prepare.remote_for(REMOTES, "acme/infra") == "upstream"
+    assert prepare.remote_for(REMOTES, "me/infra") == "origin"
+
+
+def test_with_no_matching_remote_the_pr_repo_is_fetched_by_url():
+    assert prepare.remote_for(REMOTES, "other/thing") == "https://github.com/other/thing.git"
+    assert prepare.remote_for(REMOTES, None) == "origin"

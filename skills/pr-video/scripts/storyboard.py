@@ -128,7 +128,22 @@ def extract_yaml(markdown: str) -> str:
 
 
 def template_fields(text: str | None) -> list[str]:
-    return [name for _, name, _, _ in string.Formatter().parse(text or "") if name]
+    """The ``{figure}`` names a caption or narration uses; none when its braces don't parse."""
+    try:
+        return [name for _, name, _, _ in string.Formatter().parse(text or "") if name]
+    except ValueError:
+        return []
+
+
+def brace_problem(text: str) -> str | None:
+    """A ``{`` or ``}`` that isn't a named figure would crash the fill after filming, so refuse it now."""
+    try:
+        names = [name for _, name, _, _ in string.Formatter().parse(text) if name is not None]
+    except ValueError:
+        return "has an unmatched brace"
+    if any(name == "" or name.isdigit() for name in names):
+        return "has an empty or numbered {…}"
+    return None
 
 
 def fill(template: str | None, figures: dict[str, str]) -> str | None:
@@ -176,6 +191,11 @@ def check_words(where: str, raw: dict) -> list[str]:
     figures, problems = raw.get("figures") or {}, []
     caption, say = raw.get("caption") or "", raw.get("say") or ""
     for name, text in (("caption", caption), ("narration", say)):
+        broken = brace_problem(text)
+        if broken:
+            problems.append(f"{where}: {name} {broken} — write {{{{ and }}}} for a literal brace, "
+                            "or {figure_name} for a figure")
+            continue
         missing = [f for f in template_fields(text) if f not in figures]
         if missing:
             problems.append(f"{where}: {name} uses {missing} but `figures` does not define them")

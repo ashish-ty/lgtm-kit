@@ -21,7 +21,7 @@ import argparse
 import json
 import re
 import subprocess
-from datetime import UTC, datetime
+from datetime import datetime, timezone
 from pathlib import Path
 
 import diff_map
@@ -64,14 +64,33 @@ def repo_slug(url: str | None) -> str | None:
     return found.group(1) if found else None
 
 
+def remote_slug(url: str) -> str | None:
+    """``owner/repo`` from any GitHub remote URL (https, ssh or scp-style), lower-cased."""
+    found = re.search(r"github\.com[:/]([^/\s]+/[^/\s]+?)(?:\.git)?/?$", url)
+    return found.group(1).lower() if found else None
+
+
+def remote_for(remotes: str, slug: str | None) -> str:
+    """The remote that holds the PR — in a fork that is often ``upstream``, not ``origin``. With
+    no match, the PR's own repo URL; with no repo known, ``origin``."""
+    if not slug:
+        return "origin"
+    for line in remotes.splitlines():
+        parts = line.split()
+        if len(parts) >= 2 and remote_slug(parts[1]) == slug.lower():
+            return parts[0]
+    return f"https://github.com/{slug}.git"
+
+
 def gh_pr(root: Path, number: int) -> tuple[dict, str]:
     meta = json.loads(sh(["gh", "pr", "view", str(number), "--json", PR_FIELDS], root))
     try:
         diff = sh(["gh", "pr", "diff", str(number), "--color", "never"], root)
     except PrepareError:  # GitHub refuses diffs past its size limit; git has no such limit
-        ref = f"refs/pr-video/{number}"
-        sh(["git", "fetch", "-q", "origin", f"pull/{number}/head:{ref}", meta["baseRefName"]], root)
-        diff = sh(["git", *GIT_DIFF, f"origin/{meta['baseRefName']}...{ref}"], root)
+        remote = remote_for(sh(["git", "remote", "-v"], root), repo_slug(meta.get("url")))
+        head, base = f"refs/pr-video/{number}", f"refs/pr-video/{number}-base"
+        sh(["git", "fetch", "-q", remote, f"+pull/{number}/head:{head}", f"+{meta['baseRefName']}:{base}"], root)
+        diff = sh(["git", *GIT_DIFF, f"{base}...{head}"], root)
     return meta, diff
 
 
@@ -97,7 +116,7 @@ def document(meta: dict, diff: str, worktree_sha: str) -> dict:
                "body": meta.get("body") or "", "base": meta["baseRefName"], "head": meta["headRefName"],
                "head_sha": meta["headRefOid"]},
         "checked_out": worktree_sha == meta["headRefOid"],
-        "prepared_at": datetime.now(UTC).isoformat(timespec="seconds"),
+        "prepared_at": datetime.now(timezone.utc).isoformat(timespec="seconds"),
         "totals": diff_map.totals(files), "files": files,
     }
 

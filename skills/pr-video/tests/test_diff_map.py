@@ -152,3 +152,31 @@ def test_a_diff_with_spaces_in_a_path_reads_the_plus_line():
 
 def test_an_empty_diff_has_no_files():
     assert dm.parse("") == []
+
+
+QUOTED = """\
+diff --git "a/caf\\303\\251.txt" "b/caf\\303\\251.txt"
+index 1111111..2222222 100644
+--- "a/caf\\303\\251.txt"
++++ "b/caf\\303\\251.txt"
+@@ -1 +1 @@
+-old
++new
+diff --git a/my file.txt b/my file.txt
+index 1111111..2222222 100644
+--- a/my file.txt\t
++++ b/my file.txt\t
+@@ -1 +1 @@
+-old
++new
+diff --git "a/tab\\there.txt" "b/new \\"name\\".txt"
+similarity index 100%
+rename from "tab\\there.txt"
+rename to "new \\"name\\".txt"
+"""
+
+
+def test_quoted_and_spaced_paths_come_out_as_the_real_names():
+    files = dm.parse(QUOTED)
+    assert [f["path"] for f in files] == ["café.txt", "my file.txt", 'new "name".txt']
+    assert files[2]["old_path"] == "tab\there.txt"

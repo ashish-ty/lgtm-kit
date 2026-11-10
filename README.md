@@ -122,6 +122,8 @@ before a browser opens. If a screen the PR promises isn't there, the run stops a
 - **Real things only.** Code cards are the real diff, and numbers in captions are read off the screen.
 - **≤ 3 minutes, enforced.** A longer storyboard is refused, with the longest beats named.
 - **Backend-only PR?** You get a cards-only video.
+- **English subtitles** of the narration are burned in, and written beside the MP4 as an `.srt`
+  (`--no-subtitles` turns them off).
 - Output goes to `<repo>/.pr-videos/`, which ignores itself in git.
 
 ## Privacy

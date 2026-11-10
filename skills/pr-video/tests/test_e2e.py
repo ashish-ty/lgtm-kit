@@ -24,6 +24,7 @@ import crawl_app
 import prepare
 import render
 import session
+import timeline
 import voice
 
 pytestmark = pytest.mark.e2e
@@ -39,6 +40,7 @@ RICH_PAGE = """<!doctype html><html><head><meta charset="utf-8"><title>Settings<
 <body style="font-family:system-ui;margin:60px"><h1>Upload settings</h1>
 <label>Retries</label><div><button aria-haspopup="listbox" id="rt">3</button>
 <ul role="listbox" id="rl" hidden><li role="option">1</li><li role="option">3</li><li role="option">5</li></ul></div>
+<label>Region</label><div><button aria-haspopup="listbox" id="rg">eu</button></div>
 <label>Bucket</label><input id="bucket" placeholder="bucket name">
 <div><div id="failed">42</div><div>FAILED UPLOADS</div></div>
 <button aria-label="Help" title="Retries back off exponentially">?</button>
@@ -46,6 +48,12 @@ RICH_PAGE = """<!doctype html><html><head><meta charset="utf-8"><title>Settings<
 <div style="height:1600px"></div><h2>Audit log</h2>
 <script>
 rt.onclick=()=>{rl.hidden=!rl.hidden;};
+rg.onclick=()=>{  // a portaled list, as Radix, MUI and Headless UI render: into <body>, far from its label
+  const ul=document.createElement('ul'); ul.setAttribute('role','listbox');
+  for (const v of ['eu','us']) { const li=document.createElement('li'); li.setAttribute('role','option');
+    li.textContent=v; li.onclick=()=>{rg.textContent=v; ul.remove();}; ul.append(li); }
+  document.body.append(ul);
+};
 for (const li of rl.children) li.onclick=()=>{rt.textContent=li.textContent;rl.hidden=true;failed.textContent=String(40+Number(li.textContent));};
 </script></body></html>"""
 OTHER_PAGE = "<!doctype html><html><body><h1>Other page</h1></body></html>"
@@ -191,6 +199,13 @@ def test_a_silent_capture_films_live_beats_and_cuts_cards(folder: Path, app: str
     assert all((captures / s["image"]).exists() for s in by_id["click"]["shots"])
     assert (captures / "contact-sheet.png").exists()
     assert json.loads((captures / "timeline.json").read_text())["audio"] == []
+    assert manifest["subtitles"] is True and json.loads((captures / "timeline.json").read_text())["subtitles"] == []
+
+
+def test_subtitles_can_be_turned_off(folder: Path, app: str):
+    captures = capture.run(write_board(folder, app), silent=True, engine_name="auto", allow_edge=False,
+                           subtitles=False)
+    assert json.loads((captures / "manifest.json").read_text())["subtitles"] is False
 
 
 def test_every_live_action_is_filmed(folder: Path, app: str):
@@ -227,3 +242,62 @@ def test_a_voiced_capture_and_render(folder: Path, app: str):
         return
     subprocess.run([sys.executable, str(Path(render.__file__)), "render", str(folder)], check=True)
     assert list((folder / "out").glob("*.mp4"))
+
+
+PORTAL = """# Portaled dropdown
+
+```yaml
+title: Region
+app: {app}
+start: /rich.html
+scenes:
+  - id: one
+    beats:
+      - id: region
+        do: select
+        target: {{label: Region}}
+        value: us
+        figures: {{region: {{label: Region}}}}
+        caption: "{{region}}"
+        hold: 0.5
+```
+"""
+STUCK = STORYBOARD.replace("start: /index.html", "start: /index.html\nbusy: '#go'")  # never stops being busy
+TOO_LONG = """# Too long
+
+```yaml
+title: Long
+scenes:
+  - id: one
+    beats:
+      - id: files
+        do: overview
+        hold: 200
+```
+"""
+
+
+def test_a_dropdown_rendered_into_the_body_is_picked(folder: Path, app: str):
+    path = folder / "storyboard.md"
+    path.write_text(PORTAL.format(app=app))
+    captures = capture.run(path, silent=True, engine_name="auto", allow_edge=False)
+    assert json.loads((captures / "manifest.json").read_text())["beats"][0]["caption"] == "us"
+
+
+def test_a_page_that_never_settles_stops_with_a_report_and_keeps_the_last_capture(folder: Path, app: str,
+                                                                                  monkeypatch):
+    capture.run(write_board(folder, app), silent=True, engine_name="auto", allow_edge=False)
+    monkeypatch.setattr(session, "BUSY_TIMEOUT_MS", 1500)
+    (folder / "storyboard.md").write_text(STUCK.format(app=app, button="Upload"))
+    with pytest.raises(SystemExit, match="STOPPED at the start page"):
+        capture.run(folder / "storyboard.md", silent=True, engine_name="auto", allow_edge=False)
+    assert (folder / "captures" / "manifest.json").exists()
+
+
+def test_a_storyboard_over_three_minutes_is_refused_before_anything_runs(folder: Path, app: str):
+    capture.run(write_board(folder, app), silent=True, engine_name="auto", allow_edge=False)
+    before = (folder / "captures" / "timeline.json").read_text()
+    (folder / "storyboard.md").write_text(TOO_LONG)
+    with pytest.raises(timeline.LengthError, match="planned"):
+        capture.run(folder / "storyboard.md", silent=True, engine_name="auto", allow_edge=False)
+    assert (folder / "captures" / "timeline.json").read_text() == before

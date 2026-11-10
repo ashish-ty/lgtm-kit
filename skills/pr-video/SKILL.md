@@ -106,12 +106,17 @@ name, fix it from `catalogue.json` and rerun. If the thing really isn't there, *
 finding**: don't rewrite the beat to show something else. Tell the user, put it in
 `review_points`, and drop or change the beat only with that noted.
 
+When it stops because **the page never settled** (a timeout), something matching `busy:` may
+stay on screen — a decorative spinner, say. Set `busy:` to the selector that really means
+loading. A stopped or refused run leaves the previous `captures/` as it was.
+
 When it says **TOO LONG**, cut beats or narration — it names the longest.
 
 ### 6. Render and hand over
 
-`uv run render.py render <folder>` writes `out/<name>.mp4`. Give the user the path, its length,
-and the review points in one short message. `render.py studio <folder>` opens Remotion Studio
+`uv run render.py render <folder>` writes `out/<name>.mp4`, with the narration burned in as
+subtitles and also saved as `out/<name>.srt` (capture with `--no-subtitles` to leave them out).
+Give the user the path, its length, and the review points in one short message. `render.py studio <folder>` opens Remotion Studio
 for scrubbing; `render.py still <folder> --frame N` renders one frame.
 
 ## Known limits (v1)
