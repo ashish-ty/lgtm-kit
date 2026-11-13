@@ -56,38 +56,19 @@ on screen and what still needs a human eye.
 
 ## Install
 
-**Claude Code** (plugin marketplace)
-
-```text
-/plugin marketplace add ashish-ty/lgtm-kit
-/plugin install lgtm-kit@lgtm-kit
-```
-
-**Any agent**, via the community [skills CLI](https://github.com/vercel-labs/skills)
+For Claude Code, with the community [skills CLI](https://github.com/vercel-labs/skills):
 
 ```bash
-npx skills add ashish-ty/lgtm-kit                  # asks which agents to install into
-npx skills add ashish-ty/lgtm-kit -a opencode -g   # or name them
+npx skills add ashish-ty/lgtm-kit -a claude-code
 ```
 
 <details>
-<summary><b>By hand:</b> clone and symlink into your agent's skills folder</summary>
+<summary><b>By hand:</b> clone and symlink into Claude Code's skills folder</summary>
 
 ```bash
 git clone https://github.com/ashish-ty/lgtm-kit ~/src/lgtm-kit
 ln -s ~/src/lgtm-kit/skills/pr-video ~/.claude/skills/pr-video
 ```
-
-| Agent | Global skills folder | Project skills folder | Tested |
-|---|---|---|---|
-| Claude Code | `~/.claude/skills/` | `.claude/skills/` | ✅ |
-| Gemini CLI | `~/.gemini/skills/` | `.gemini/skills/` or `.agents/skills/` | ⏳ before v0.1 |
-| OpenCode | `~/.config/opencode/skills/` | `.opencode/skills/` | ⏳ before v0.1 |
-| Codex CLI | `~/.codex/skills/` | `.agents/skills/` | should work |
-| Cursor | — | `.cursor/skills/` | should work |
-
-The skills only ask the agent to run shell commands and write files, so any agent that can do
-both can drive them.
 
 </details>
 
